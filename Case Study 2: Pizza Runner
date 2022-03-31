@@ -461,5 +461,157 @@ Saturday and Wednesday are the most popular days to order pizza
 */
 
 
-Section B
+Section B: Runners and Customer Experience
 
+
+/* 
+How many runners signed up for each 1 week period? (i.e. week starts 2021-01-01)
+
+*/
+
+select * from runners;
+
+select extract (week from registration_date) as week_number, 
+count(runner_id) as runner_signup
+from runners 
+group by week_number;
+
+/*
+
+So there were 2 signups in the first week
+followed by one signup each week for the next two weeks
+
+*/
+
+
+/* 
+What was the average time in minutes it took for each runner to arrive at the Pizza Runner HQ to pickup the order?*/
+
+select * from runner_orders;
+
+With time_taken_cte as
+(
+select r.order_id,(EXTRACT(EPOCH FROM (r.pickup_time-c.order_time))/60) as pickup_minutes
+from runner_orders r
+join customer_orders c 
+on r.order_id=c.order_id
+where r.order_id=c.order_id
+and r.duration >0
+group by r.order_id,r.pickup_time,c.order_time
+)
+
+select avg(pickup_minutes)::numeric(3,1) as avg_pickup_minutes 
+from time_taken_cte;
+
+--Time taken rounds to 16 minutes--
+
+
+--we need to check the null values of the table--
+
+
+/*
+3. Is there any relationship between the number of pizzas and how long the order takes to prepare?
+*/
+
+With prep_time_taken_cte
+as
+(
+SELECT c.order_id, count(c.pizza_id) as pizza_order,EXTRAct(EPOCH FROM (r.pickup_time-c.order_time)/60) as prep_time_minutes
+from runner_orders r
+join customer_orders c 
+on r.order_id=c.order_id
+where r.order_id=c.order_id
+and r.duration>0
+group by c.order_id,r.pickup_time,c.order_time
+)
+
+
+select  ROUND(AVG(prep_time_minutes)::INT ,0) as avg_prep_time_minutes,pizza_order
+from prep_time_taken_cte
+group by pizza_order
+order by pizza_order desc;
+
+/*
+So for orders of 3 pizzas it takes 29 minutes
+for orders of 2 pizzas it takes 18 minutes
+for orders of 1 pizza it takes 12 minutes
+
+Therefore orders of 2 pizzas have the quickest prep time per pizza
+
+*/
+
+/* 
+4. What was the average distance travelled for each customer?
+
+*/
+
+
+select c.customer_id, CAST(AVG(r.distance) as numeric(3,1)) as avg_dist_km
+from runner_orders r
+join customer_orders c
+on r.order_id=c.order_id
+where r.distance>0
+group by c.customer_id
+order by avg_dist_km desc;
+
+/*
+Customer 105 is the furthest from Pizza HQ at 25Km
+while  Customer 104 is the closest at 10km
+*/
+
+
+/*
+5. What was the difference between the longest and shortest delivery times for all orders?
+*/
+
+
+
+select (max(duration) - min(duration)) as delivery_time_difference
+from runner_orders
+where duration>0
+
+-- We can use the duration column to find the difference between Max and Min delivery times
+-- the delivery difference is 30 minutes
+
+/* 
+6. What was the average speed for each runner for each 
+delivery and do you notice any trend for these values?
+			
+*/
+
+select r.runner_id,
+round((r.distance/r.duration*60),2) as avg_speed
+from runner_orders r
+join customer_orders c
+on r.order_id=c.order_id
+where r.distance>0
+group by r.runner_id,c.customer_id,r.distance,r.duration
+order by r.runner_id;
+
+/*
+
+Runner 1 average speed is in the range of 37.5km/h to 60km/h
+Runner 2 average speed is betwen 35 km/h to 93 km/h which is odd. 93 km/h is alarmingly high, so maybe it is worth investigating
+Runner 3 averages 40km/h
+
+*/
+
+/*
+
+7. What is the successful delivery percentage for each runner?
+*/
+
+SELECT runner_id, 
+ROUND(100 * SUM
+  (CASE WHEN distance = 0 THEN 0
+  ELSE 1
+  END) / COUNT(*), 2) AS successful_delivery_percentage
+FROM runner_orders
+GROUP BY runner_id
+order by successful_delivery_percentage desc;
+
+/*
+Runner 1 has a 100% success rate, followed by Runner 2 with 75% and lastly runner 3 with 50%
+*/
+
+select * from runner_orders;
